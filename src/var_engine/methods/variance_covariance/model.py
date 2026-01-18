@@ -51,13 +51,20 @@ class VarianceCovarianceVaR:
         cov_matrix = self.cov_estimator(returns_window)
 
         # Portfolio exposures aligned to returns columns
-        exposures = portfolio.exposures.reindex(returns.columns)
+        exposures = portfolio.exposures.reindex(returns.columns).values
 
         # Calculate portfolio variance = w.T * Cov * w
         port_var = exposures.T @ cov_matrix.values @ exposures
 
         # Portfolio volatility (std dev)
-        port_vol = np.sqrt(port_var)
+        port_vol_dollars = np.sqrt(port_var)
+
+        portfolio_value = portfolio.portfolio_value
+        if portfolio_value <= 0:
+            raise ValueError("Portfolio value must be positive")
+
+        # Portfolio volatility (std dev)
+        port_vol_pct = port_vol_dollars / portfolio_value
 
         # Mean portfolio return over the window (weighted sum)
         mean_ret = (returns_window.dot(portfolio.weights)).mean()
@@ -66,11 +73,15 @@ class VarianceCovarianceVaR:
         z_score = norm.ppf(self.confidence_level)
 
         # VaR is positive number representing loss magnitude
-        VaR = -z_score * port_vol
+        VaR_dollars = -z_score * port_vol_dollars
+
+        VaR_pct = VaR_dollars / portfolio_value
 
         return {
-            "VaR": VaR,
-            "portfolio_variance": port_var,
-            "portfolio_volatility": port_vol,
-            "portfolio_mean_return": mean_ret,
+            "portfolio_value": float(portfolio_value),
+            "VaR_dollars": float(VaR_dollars),
+            "VaR_percent": float(VaR_pct),
+            # "portfolio_variance": port_var,
+            "volatility_percent": float(port_vol_pct),
+            # "portfolio_mean_return": mean_ret,
         }
