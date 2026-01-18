@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from pydantic import BaseModel, Field
 
 class VarCovarRequest(BaseModel):
@@ -12,4 +12,5 @@ class VarCovarResponse(BaseModel):
     var_dollars: float
     var_percent: float
     volatility_percent: float
+    correlation_matrix: Optional[List[List[float]]] = None
     diagnostics: Optional[Dict[str, float]] = None

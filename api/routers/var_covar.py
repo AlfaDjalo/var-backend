@@ -41,7 +41,8 @@ def calculate_var_covar(request: VarCovarRequest):
             var_dollars=results["VaR_dollars"],
             var_percent=results["VaR_percent"],
             volatility_percent=results["volatility_percent"],
-            diagnostics=results.get("diagnostics")
+            correlation_matrix=results["correlation_matrix"],
+            diagnostics=results.get("diagnostics"),
         )
 
         return response

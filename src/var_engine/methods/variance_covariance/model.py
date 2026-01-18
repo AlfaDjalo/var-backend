@@ -77,11 +77,28 @@ class VarianceCovarianceVaR:
 
         VaR_pct = VaR_dollars / portfolio_value
 
+        # cov_matrix = cov_matrix.values.tolist()
+        print(cov_matrix)
+
+        # Calculate correlation matrix from covariance
+        std_devs = np.sqrt(np.diag(cov_matrix.values))
+        print(std_devs)
+
+        # Protect against divide-by-zero
+        if np.any(std_devs == 0):
+            raise ValueError("Zero variance asset detected; cannot compute correlation matrix")
+
+        corr_matrix = cov_matrix.values / np.outer(std_devs, std_devs)
+        corr_matrix = corr_matrix.tolist()
+
+        print(corr_matrix)
+
         return {
             "portfolio_value": float(portfolio_value),
             "VaR_dollars": float(VaR_dollars),
             "VaR_percent": float(VaR_pct),
             # "portfolio_variance": port_var,
             "volatility_percent": float(port_vol_pct),
+            "correlation_matrix": corr_matrix,
             # "portfolio_mean_return": mean_ret,
         }
