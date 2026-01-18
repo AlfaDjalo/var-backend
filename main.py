@@ -8,7 +8,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",  # dev server
-        "https://your-username.github.io",  # your GitHub Pages production URL (no trailing slash)
+        "https://AlfaDjalo.github.io",  # your GitHub Pages production URL (no trailing slash)
     ],
     allow_credentials=True,
     allow_methods=["*"],
