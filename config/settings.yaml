@@ -1,0 +1,4 @@
+data:
+  source: "csv"
+  path: "data/portfolio_prices_10.csv"
+  date_column: "Date"
