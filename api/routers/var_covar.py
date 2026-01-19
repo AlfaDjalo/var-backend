@@ -24,10 +24,24 @@ def calculate_var_covar(request: VarCovarRequest):
         returns = loader.load_returns()
     
         if request.positions:
+            # Check all tickers in returns.columns are in positions keys
+            missing_tickers = set(returns.columns) - set(request.positions.keys())
+            if missing_tickers:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Positions missing tickers present in returns data: {missing_tickers}"
+                )
             positions = pd.Series(request.positions).reindex(returns.columns)
             portfolio = Portfolio(returns=returns, positions=positions)
         else:
             portfolio = Portfolio(returns=returns)
+
+
+        # if request.positions:
+        #     positions = pd.Series(request.positions).reindex(returns.columns)
+        #     portfolio = Portfolio(returns=returns, positions=positions)
+        # else:
+        #     portfolio = Portfolio(returns=returns)
 
         var_covar = VarianceCovarianceVaR(
             confidence_level=request.confidence_level,

@@ -15,6 +15,14 @@ class CSVPriceLoader:
             raise DataLoaderError(f"CSV file not found: {self.path}")
         
     def load_prices(self) -> pd.DataFrame:
+        """
+        Load prices from csv file into pandas dataframe.
+
+        Returns:
+            Dataframe with columns:
+              - 'Date': Datetime. This is the index.
+              - Tickers: Tickers for each asset.
+        """
         try:
             df = pd.read_csv(self.path)
         except Exception as e:
@@ -29,12 +37,19 @@ class CSVPriceLoader:
         df = df.set_index(self.date_column)
         df = df.sort_index()
 
-        if not np.issubdtype(df.dtypes.values[0], np.number):
-            raise DataLoaderError("Price columns must be numeric")
+        if not all(np.issubdtype(dtype, np.number) for dtype in df.dtypes):
+            raise DataLoaderError("All price columns must be numeric")
         
         return df
     
     def load_returns(self) -> pd.DataFrame:
+        """
+        Calculate asset log returns from price data.
+
+        Returns:
+            Dataframe index by datetome, with one column per asset ticker,
+            containing log returns.
+        """
         prices = self.load_prices()
 
         # log returns

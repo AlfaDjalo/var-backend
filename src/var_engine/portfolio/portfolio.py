@@ -9,51 +9,59 @@ class Portfolio:
         Args:
             returns: DataFrame of asset returns; index = datetime, columns = tickers.
             positions: Optional Series mapping tickers to current market values.
-                        If None, assumes equal weighted exposures summing to 1.
+                        If None, assumes equal weighted positions summing to 1.
 
         Raises:
             ValueError if tickers in positions don't align with returns columns.
         """
         self.returns = returns.copy()
 
-        # Validate positions or set default equal exposures summing to 1
+        # Validate positions or set default equal positions summing to 1
         if positions is None:
             n_assets = len(self.returns.columns)
-            equal_exposure = 1.0 / n_assets
-            self.exposures = pd.Series(
-                data=[equal_exposure] * n_assets, index=self.returns.columns, dtype=float
+            equal_position = 1.0 / n_assets
+            self.positions = pd.Series(
+                data=[equal_position] * n_assets, index=self.returns.columns, dtype=float
             )
         else:
             # Validate tickers match exactly (no extras or missing)
             missing = set(positions.index) - set(self.returns.columns)
-            extra = set(self.returns.columns) - set(positions.index)
             if missing:
                 raise ValueError(f"Positions contain tickers not in returns data: {missing}")
-            if extra:
-                raise ValueError(f"Returns data contain tickers not in positions: {extra}")
 
-            self.exposures = positions.reindex(self.returns.columns).astype(float)
+            # extra = set(self.returns.columns) - set(positions.index)
+            # if missing:
+            #     raise ValueError(f"Positions contain tickers not in returns data: {missing}")
+            # if extra:
+            #     raise ValueError(f"Returns data contain tickers not in positions: {extra}")
 
-        if (self.exposures < 0).any():
+            # Reindex positions to returns columns, filling missing with zero
+            positions = positions.reindex(self.returns.columns, fill_value=0)
+            self.positions = positions
+            
+            # self.positions = positions.reindex(self.returns.columns).astype(float)
+
+        if (self.positions < 0).any():
             # You might allow short positions, but for now let's just warn or raise
-            print("Warning: Negative exposures detected (short positions).") 
+            print("Warning: Negative positions detected (short positions).") 
    
     @property
     def portfolio_value(self) -> float:
-        """Current total portfolio market value (sum of exposures)."""
-        return self.exposures.sum()
+        """Current total portfolio market value (sum of positions)."""
+        return self.positions.sum()
 
     @property
     def weights(self) -> pd.Series:
         """
-        Derived portfolio weights as exposures normalized to sum to 1.
+        Derived portfolio weights as positions normalized to sum to 1.
         For display and relative comparisons only.
         """
         total = self.portfolio_value
         if total == 0: 
-            return pd.Series(0, index=self.exposures.index)
-        return self.exposures / total
+            return pd.Series(0, index=self.positions.index)
+        return self.positions / total
         
+    @property
     def portfolio_returns(self) -> pd.Series:
         """
         Calculate the portfolio return time series as weighted sum of asset returns.

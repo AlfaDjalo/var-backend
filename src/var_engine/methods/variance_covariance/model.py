@@ -29,7 +29,7 @@ class VarianceCovarianceVaR:
         Calculate VaR and related metrics for the given portfolio.
 
         Args:
-            portfolio: Portfolio instance with `returns` (DataFrame) and `exposures` (Series).
+            portfolio: Portfolio instance with `returns` (DataFrame) and `positions` (Series).
 
         Returns:
             Dictionary with keys:
@@ -50,11 +50,11 @@ class VarianceCovarianceVaR:
         # Calculate covariance matrix of returns
         cov_matrix = self.cov_estimator(returns_window)
 
-        # Portfolio exposures aligned to returns columns
-        exposures = portfolio.exposures.reindex(returns.columns).values
+        # Portfolio positions aligned to returns columns
+        positions = portfolio.positions.reindex(returns.columns).values
 
         # Calculate portfolio variance = w.T * Cov * w
-        port_var = exposures.T @ cov_matrix.values @ exposures
+        port_var = positions.T @ cov_matrix.values @ positions
 
         # Portfolio volatility (std dev)
         port_vol_dollars = np.sqrt(port_var)
@@ -77,12 +77,8 @@ class VarianceCovarianceVaR:
 
         VaR_pct = VaR_dollars / portfolio_value
 
-        # cov_matrix = cov_matrix.values.tolist()
-        print(cov_matrix)
-
         # Calculate correlation matrix from covariance
         std_devs = np.sqrt(np.diag(cov_matrix.values))
-        print(std_devs)
 
         # Protect against divide-by-zero
         if np.any(std_devs == 0):
@@ -90,8 +86,6 @@ class VarianceCovarianceVaR:
 
         corr_matrix = cov_matrix.values / np.outer(std_devs, std_devs)
         corr_matrix = corr_matrix.tolist()
-
-        print(corr_matrix)
 
         return {
             "portfolio_value": float(portfolio_value),

@@ -21,8 +21,8 @@ def main():
     portfolio_eq = Portfolio(returns=returns)
 
     print("Portfolio value:", portfolio_eq.portfolio_value)
-    print("Exposures (equal weight):")
-    print(portfolio_eq.exposures)
+    print("Positions (equal weight):")
+    print(portfolio_eq.positions)
 
     print("\nWeights:")
     print(portfolio_eq.weights)
@@ -34,8 +34,8 @@ def main():
     portfolio_custom = Portfolio(returns=returns, positions=positions)
 
     print("\nCustom portfolio value:", portfolio_custom.portfolio_value)
-    print("Custom exposures:")
-    print(portfolio_custom.exposures)
+    print("Custom Positions:")
+    print(portfolio_custom.positions)
 
     print("\nCustom weights:")
     print(portfolio_custom.weights)
