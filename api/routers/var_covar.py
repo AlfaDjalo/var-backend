@@ -5,7 +5,7 @@ import pandas as pd
 from api.schemas.var_covar import VarCovarRequest, VarCovarResponse
 from var_engine.data_loader.csv_loader import CSVPriceLoader
 from var_engine.portfolio.portfolio import Portfolio
-from var_engine.methods.variance_covariance.model import VarianceCovarianceVaR
+from var_engine.risk_models.variance_covariance.model import VarianceCovarianceVaR
 
 router = APIRouter()
 
@@ -18,6 +18,12 @@ class InspectRequest(BaseModel):
 def calculate_var_covar(request: VarCovarRequest):
     file_path = f"{DATA_DIR}/{request.dataset_name}"
     print(file_path)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Dataset not found: {request.dataset_name}"
+        )
 
     try:
         loader = CSVPriceLoader(path=file_path)

@@ -1,7 +1,7 @@
 from var_engine.config.loader import ConfigLoader
 from var_engine.data_loader.csv_loader import CSVPriceLoader
 from var_engine.portfolio.portfolio import Portfolio
-from var_engine.methods.variance_covariance.model import VarianceCovarianceVaR
+from var_engine.risk_models.variance_covariance.model import VarianceCovarianceVaR
 
 import pandas as pd
 
