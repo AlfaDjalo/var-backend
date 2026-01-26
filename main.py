@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routers import datasets, parametric, histsim
+from api.routers import datasets, parametric, histsim, montecarlo
 # from api.routers import var_covar, datasets, parametric
 
 app = FastAPI()
@@ -20,6 +20,7 @@ app.add_middleware(
 # app.include_router(var_covar.router)
 app.include_router(parametric.router)
 app.include_router(histsim.router)
+app.include_router(montecarlo.router)
 
 app.include_router(datasets.router)
 
