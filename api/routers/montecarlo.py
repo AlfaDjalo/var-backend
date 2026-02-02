@@ -1,98 +1,105 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from pathlib import Path
 import pandas as pd
-import os
+from typing import Dict, Any
 
-from api.schemas.montecarlo import MonteCarloRequest, MonteCarloResponse
+from api.config import DATA_PATH
+from api.schemas.var import MonteCarloRequest, MonteCarloResponse
 from var_engine.data_loader.csv_loader import CSVPriceLoader
-from var_engine.portfolio.portfolio import Portfolio
-from var_engine.portfolio.products.equity import StockProduct
+from api.helpers.portfolio import build_portfolio_from_request
 from var_engine.risk_models.monte_carlo import MonteCarloVaR
 
-router = APIRouter()
-DATA_DIR = "data"
+
+router = APIRouter(prefix="/montecarlo", tags=["Monte Carlo Simulation"])
+DATA_DIR = DATA_PATH
+
 
 class InspectRequest(BaseModel):
     dataset_name: str
 
-@router.post("/montecarlo/calculate", response_model=MonteCarloResponse)
+@router.post("/calculate")
 def calculate_montecarlo_var(request: MonteCarloRequest):
-    file_path = f"{DATA_DIR}/{request.dataset_name}"
-    print(file_path)
+    """
+    Calculate Monte Carlo Simulation VaR.
+    """
+    # -------------------------------------------------
+    # 1. Load dataset
+    # -------------------------------------------------
+    print("Loading dataset.")
+    dataset_name = request.dataset_name
+    print("dataset_name:", dataset_name)
+    if not dataset_name:
+        raise HTTPException(400, "Dataset name required")
+    print("DATA_DIR:", DATA_DIR)
 
-    if not os.path.exists(file_path):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Dataset not found: {request.dataset_name}"
-        )
+    csv_path = Path(DATA_DIR) / dataset_name
+    print("csv_path:", csv_path)
+    if not csv_path.exists():
+        raise HTTPException(400, f"Dataset not found: {dataset_name}")
 
-    try:
-        loader = CSVPriceLoader(path=file_path)
-        returns = loader.load_returns()
+    loader = CSVPriceLoader(path=csv_path)
+    prices = loader.load_prices()
+    returns = loader.load_returns()
+
+    if prices.empty or returns.empty:
+        raise HTTPException(400, "Insufficient data")
+
+    # Get latest prices (spots)
+    latest_prices = prices.iloc[-1]
+
+    spot: Dict[str, float] = {
+        k: float(v) for k, v in latest_prices.to_dict().items()
+    }
+
+    # Estimate covariance from returns
+
+    cov = returns.cov()
+
+    market_data: Dict[str, Any] = {
+        "spot": spot,
+        "returns": returns,
+        "cov": cov,
+        "horizon": 1.0 / 252,
+    }
+
+    # -------------------------------------------------
+    # 2. Build portfolio from products
+    # -------------------------------------------------
+    products = request.products
+    print("products: ", products)
+    if not products:
+        raise HTTPException(400, "Products required")
     
-        if not request.positions:
-            raise HTTPException(status_code=400, detail="Positions required")
-
-
-        # Check all tickers in returns.columns are in positions keys
-        missing_tickers = set(returns.columns) - set(request.positions.keys())
-        if missing_tickers:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Positions missing tickers present in returns data: {missing_tickers}"
-            )
-        
-        products = [
-            StockProduct(
-                product_id=ticker,
-                market_value=float(request.positions[ticker]),
-            )
-            for ticker in returns.columns
-        ]
-
-        portfolio = Portfolio(products)
-
-        model = MonteCarloVaR(
-            confidence_level=request.confidence_level,
-            parameter_estimation_window_days=request.parameter_estimation_window_days,
-            n_sims=request.n_sims,
-            random_seed=request.random_seed
-        )
-
-            # positions = pd.Series(request.positions).reindex(returns.columns)
-            # portfolio = Portfolio(returns=returns, positions=positions)
-        # else:
-        #     portfolio = Portfolio(returns=returns)
-
-
-        # if request.positions:
-        #     positions = pd.Series(request.positions).reindex(returns.columns)
-        #     portfolio = Portfolio(returns=returns, positions=positions)
-        # else:
-        #     portfolio = Portfolio(returns=returns)
-
-        results = model.run(portfolio, returns)
-        # results = model.run(portfolio, returns)
-
-        response = MonteCarloResponse(
-            portfolio_value=results.portfolio_value,
-            var_absolute=results.var_absolute,
-            var_percent=results.var_percent,
-            diagnostics=results.metadata,
-        )
-
-        # print(response)
-
-        return response
+    try:
+        portfolio = build_portfolio_from_request(products)
 
     except Exception as e:
-        print(f"Error in calculation: {e}")
-        raise HTTPException(status_code=400, detail=f"Calculation failed: {str(e)}")
+        raise HTTPException(400, f"Failed to build portfolio: {str(e)}")
+    print("Portfolio: ", portfolio)
+
+
+    model = MonteCarloVaR(
+        confidence_level=request.confidence_level,
+        n_sims=request.n_sims,
+        random_seed=request.random_seed
+    )
+
+    results = model.run(portfolio, market_data=market_data)
+
+    response = MonteCarloResponse(
+        portfolio_value=results.portfolio_value,
+        var_dollar=results.var_dollar,
+        var_percent=results.var_percent,
+        diagnostics=results.metadata,
+    )
+
+    return response
+
     
-@router.post("/montecarlo/inspect")
+@router.post("/inspect")
 def inspect_dataset(request: InspectRequest):
     file_path = f"{DATA_DIR}/{request.dataset_name}"
-    # print(file_path)
 
     try:
         loader = CSVPriceLoader(path=file_path)
@@ -101,9 +108,7 @@ def inspect_dataset(request: InspectRequest):
         print(f"Error retreiving asset names: {e}")
         raise HTTPException(status_code=400, detail=f"Data load failed: {str(e)}")
     
-    # df = load_dataset(request.dataset_name)
-
-    asset_columns = [c for c in df.columns if c.lower() != "data"]
+    asset_columns = [c for c in df.columns if c.lower() != "date"]
 
     return {
         "assets": asset_columns

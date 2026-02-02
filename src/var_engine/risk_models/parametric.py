@@ -1,11 +1,13 @@
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
-from typing import Callable, Optional
+from typing import Dict, Any, Callable, Optional
 
 from .var_model import VaRModel
 from .base import VaRResult
 # from .var_model import VaRModel, VaRResult
+from var_engine.portfolio.portfolio import Portfolio
+from var_engine.scenarios.scenario import Scenario
 
 class ParametricVaR(VaRModel):
     """
@@ -26,9 +28,27 @@ class ParametricVaR(VaRModel):
         # self._portfolio_vol = None
         # self._correlation = None
 
-    def run(self, portfolio, returns: pd.DataFrame) -> VaRResult:
-        self._returns = returns
-        return super().run(portfolio)
+    def run(self, portfolio, market_data: Dict[str, Any]) -> VaRResult:
+
+        base_scenario = self._create_base_scenario(market_data)
+
+        sensitivities = portfolio.get_sensitivities(base_scenario)
+
+        return VaRResult(
+            portfolio_value=float(portfolio_value),
+            var_dollar=float(var_dol),
+            var_percent=float(var_pct),
+            confidence_level=self.confidence_level,
+            volatility=meta.get("volatility"),
+            # volatility=self.model_metadata().get("volatility"),
+            pnl_distribution=pnl,
+            scenario_values=scenario_values,
+            metadata=meta,
+            # metadata=self.model_metadata()
+        )
+
+        # self._returns = returns
+        # return super().run(portfolio)
 
     def compute_var(self, portfolio, pnl=None, scenarios=None) -> float:
         returns = self._returns
@@ -54,6 +74,21 @@ class ParametricVaR(VaRModel):
         self._correlation = self._correlation_from_cov(cov)
 
         return -z * port_vol
+
+    def _create_base_scenario(self, market_data: Dict[str, Any]) -> Scenario:
+
+        spot = market_data["spot"]
+        cov = market_data["cov"]
+
+        vols = np.sqrt(np.diag(cov))
+        assets = list(spot.keys())
+
+        return Scenario(
+            spot=spot,
+            vol={a: float(v) for a, v in zip(assets, vols)},
+            rate=0.0,
+            dt=0.0,
+        )
 
     # def compute_var(
     #     self,

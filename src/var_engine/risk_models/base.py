@@ -9,7 +9,7 @@ class VaRResult:
     Standardised output for a VaR calculation.
     """
     portfolio_value: float
-    var_absolute: float
+    var_dollar: float
     var_percent: float
     confidence_level: float
 

@@ -4,9 +4,10 @@ class Product(ABC):
     """
     Base class for all financial products.
     """
-    def __init__(self, product_id: str, market_value: float):
+    def __init__(self, product_id: str):
+    # def __init__(self, product_id: str, market_value: float):
         self.product_id = product_id
-        self.market_value = float(market_value)
+        # self.market_value = float(market_value)
 
     @abstractmethod
     def revalue(self, scenario):
@@ -20,4 +21,8 @@ class Product(ABC):
             New market value under the scenario
         """
         pass
+
+    @property
+    def market_value(self):
+        raise NotImplementedError("Use revalue(scenario) to get market value")
 
