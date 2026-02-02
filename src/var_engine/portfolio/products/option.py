@@ -12,7 +12,7 @@ class OptionProduct(Product):
     def __init__(
         self,
         product_id: str,
-        underlying_id: str,
+        underlying_ticker: str,
         strike: float,
         maturity: float,           # in years
         option_type: str,          # "call" or "put"
@@ -40,7 +40,7 @@ class OptionProduct(Product):
         initial_spot : float
             Spot used to compute initial market value.
         """
-        self.underlying_id = underlying_id
+        self.underlying_ticker = underlying_ticker
         self.strike = float(strike)
         self.maturity = float(maturity)
         self.option_type = option_type.lower()
@@ -68,10 +68,10 @@ class OptionProduct(Product):
         Revalue option under a market scenario.
         """
         try:
-            spot = scenario.spot[self.underlying_id]
-            vol = scenario.vol[self.underlying_id]
+            spot = scenario.spot[self.underlying_ticker]
+            vol = scenario.vol[self.underlying_ticker]
         except KeyError as e:
-            raise KeyError(f"Scenario missing data for {self.underlying_id}") from e
+            raise KeyError(f"Scenario missing data for {self.underlying_ticker}") from e
 
         remaining_maturity = max(self.maturity - scenario.dt, 0.0)
 
@@ -85,3 +85,24 @@ class OptionProduct(Product):
         )
 
         return self.quantity * price
+
+    def get_sensitivities(self, scenario: Scenario) -> Dict[str, float]:
+        spot = scenario.spot[self.underlying_ticker]
+        vol = scenario.vol[self.underlying_ticker]
+
+        greeks = self.pricing_model.greeks(
+            spot=spot,
+            strike=self.strike,
+            maturity=self.maturity,
+            vol=vol,
+            rate=scenario.rate,
+            option_type=self.option_type
+        )
+
+        delta = greeks["delta"]
+
+        exposure = delta * spot * self.quantity
+        
+        return {
+            self.underlying_ticker: exposure
+        }

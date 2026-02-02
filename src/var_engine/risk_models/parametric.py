@@ -9,6 +9,14 @@ from .base import VaRResult
 from var_engine.portfolio.portfolio import Portfolio
 from var_engine.scenarios.scenario import Scenario
 
+# -------------------------------------------------
+# Needs to be rewritten once product sensitivities
+# are working.
+# -------------------------------------------------
+
+
+
+
 class ParametricVaR(VaRModel):
     """
     Variance-covariance (parametric) VaR model.
@@ -31,19 +39,35 @@ class ParametricVaR(VaRModel):
     def run(self, portfolio, market_data: Dict[str, Any]) -> VaRResult:
 
         base_scenario = self._create_base_scenario(market_data)
+        portfolio_value = portfolio.revalue(base_scenario)
 
-        sensitivities = portfolio.get_sensitivities(base_scenario)
+        exposures = portfolio.get_sensitivities(base_scenario)
+
+        w = pd.Series(exposures)
+
+        returns = market_data["returns"]
+        cov = returns.cov().loc[w.index, w.index]
+
+        port_var = w.T @ cov @ w
+        port_vol = np.sqrt(port_var)
+
+        z = norm.ppf(self.confidence_level)
+
+        VaR = z * port_vol
+
+        var_dol = VaR
+        var_pct = VaR / portfolio_value
 
         return VaRResult(
             portfolio_value=float(portfolio_value),
             var_dollar=float(var_dol),
             var_percent=float(var_pct),
             confidence_level=self.confidence_level,
-            volatility=meta.get("volatility"),
+            # volatility=meta.get("volatility"),
             # volatility=self.model_metadata().get("volatility"),
-            pnl_distribution=pnl,
-            scenario_values=scenario_values,
-            metadata=meta,
+            # pnl_distribution=pnl,
+            # scenario_values=scenario_values,
+            # metadata=meta,
             # metadata=self.model_metadata()
         )
 

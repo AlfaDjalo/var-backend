@@ -42,9 +42,9 @@ class BaseVaRResponse(BaseModel):
     diagnostics: Optional[Dict[str, Any]] = None    
 
 class ParametricResponse(BaseVaRResponse):
-    volatility_percent: float
-    correlation_matrix: Optional[List[List[float]]] = None
-
+    # volatility_percent: float
+    # correlation_matrix: Optional[List[List[float]]] = None
+    pass
 
 class MonteCarloResponse(BaseVaRResponse):
     pass

@@ -1,4 +1,5 @@
 from typing import List, Dict, Any #,Optional
+from collections import defaultdict
 import numpy as np
 
 from var_engine.portfolio.product_factory import ProductFactory
@@ -87,7 +88,7 @@ class Portfolio:
         return self.revalue(scenario) - self.revalue(base_scenario)
 
 
-    def get_sensitivities(self, scenario):
+    def get_sensitivities(self, scenario) -> Dict[str, float]:
         """
         Collect sensitivities from each product, for parametric VaR or other analyses.
 
@@ -95,10 +96,20 @@ class Portfolio:
             List of sensitivities arrays/dicts aligned with products,
             or None if sensitivities not implemented for a product.
         """
-        sensitivities = []
+        total = defaultdict(float)
+
+        # sensitivities = []
         for product in self.products:
-            if hasattr(product, "sensitivities") and callable(product.sensitivities):
-                sensitivities.append(product.sensitivities(scenario))
-            else:
-                sensitivities.append(None)
-            return sensitivities   
+            sens = product.get_sensitivities(scenario)
+
+            for factor, value in sens.items():
+                total[factor] += value
+
+        return dict(total)
+
+
+            # if hasattr(product, "sensitivities") and callable(product.sensitivities):
+            #     sensitivities.append(product.sensitivities(scenario))
+            # else:
+            #     sensitivities.append(None)
+            # return sensitivities   

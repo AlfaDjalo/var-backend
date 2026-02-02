@@ -1,3 +1,5 @@
+from typing import Dict
+from var_engine.scenarios.scenario import Scenario
 from .base import Product
 
 class StockProduct(Product):
@@ -29,7 +31,15 @@ class StockProduct(Product):
 
         return self.quantity * new_spot
 
+    def get_sensitivities(self, scenario: Scenario) -> Dict[str, float]:
+        spot = scenario.spot[self.ticker]
+        market_value = self.quantity * spot
 
+        return {
+            self.ticker: market_value
+        }
+
+        return super().get_sensitivities(scenario)
 
 # from .base import Product
 
