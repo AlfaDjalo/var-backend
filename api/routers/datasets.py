@@ -4,6 +4,9 @@ from fastapi.responses import FileResponse
 import os
 import uuid
 import shutil
+from pydantic import BaseModel
+
+from var_engine.data_loader.csv_loader import CSVPriceLoader
 
 # app = FastAPI()
 router = APIRouter()
@@ -37,3 +40,33 @@ def upload_dataset(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
 
     return {"filename": unique_name}
+
+class InspectRequest(BaseModel):
+    dataset_name: str
+
+@router.post("/datasets/inspect")
+def inspect_dataset(request: InspectRequest):
+    file_path = f"{DATA_DIR}/{request.dataset_name}"
+    print(file_path)
+
+    try:
+        loader = CSVPriceLoader(path=file_path)
+        df = loader.load_prices()  # Use load_prices here to get prices, not returns
+        if df.empty:
+            raise HTTPException(status_code=400, detail="Price data is empty")
+
+        asset_columns = [c for c in df.columns if c.lower() != "date"]
+
+        # Get last available prices as dict
+        spot_prices = df.iloc[-1].to_dict()
+
+        return {
+            "assets": asset_columns,
+            "spot_prices": spot_prices,
+        }
+
+    except Exception as e:
+        print(f"Error retrieving asset names and spot prices: {e}")
+        raise HTTPException(status_code=400, detail=f"Data load failed: {str(e)}")
+
+

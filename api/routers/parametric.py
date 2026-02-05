@@ -17,6 +17,7 @@ from var_engine.risk_models.parametric import ParametricVaR
 # from var_engine.portfolio.product_factory import ProductFactory
 # from var_engine.portfolio.builders import ProductFactory
 
+# router = APIRouter()
 router = APIRouter(prefix="/parametric", tags=["Parametric"])
 DATA_DIR = DATA_PATH
 
@@ -24,6 +25,7 @@ DATA_DIR = DATA_PATH
 class InspectRequest(BaseModel):
     dataset_name: str
 
+# @router.post("/parametric/calculate")
 @router.post("/calculate")
 # @router.post("/parametric/calculate", response_model=ParametricResponse)
 def calculate_parametric_var(request: ParametricRequest):
@@ -107,6 +109,7 @@ def calculate_parametric_var(request: ParametricRequest):
     return response
 
     
+# @router.post("/parameric/inspect")
 @router.post("/inspect")
 def inspect_dataset(request: InspectRequest):
     file_path = f"{DATA_DIR}/{request.dataset_name}"

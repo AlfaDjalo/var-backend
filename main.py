@@ -31,3 +31,7 @@ def root():
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+# @app.post("/parametric/inspect")
+# def test_inspect():
+#     return {"message": "Direct inspect endpoint working"}
