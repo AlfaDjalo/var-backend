@@ -31,29 +31,6 @@ class HistSimVaR(VaRModel):
         # return super().run(portfolio)
         return super().run(portfolio, base_scenario, scenarios)
     
-    # def compute_var(self, portfolio, pnl=None, scenarios=None) -> float:
-
-    #     returns = self._scenarios
-    #     product_ids = [p.product_id for p in portfolio.products]
-    #     returns = returns[product_ids]
-
-    #     returns_window = returns.tail(self.hist_data_window_days)
-    #     if len(returns_window) < self.hist_data_window_days:
-    #         raise ValueError("Not enough data for historical data window")
-
-    #     market_values = np.array([p.market_value for p in portfolio.products])
-    #     portfolio_value = portfolio.portfolio_value
-
-    #     portfolio_returns = returns_window @ (market_values / portfolio_value)
-
-    #     pnl_series = portfolio_returns * portfolio_value
-        
-    #     var_value = -pnl_series.quantile(self.confidence_level)
-
-    #     self._volatility = pnl_series.std() / portfolio_value
-
-    #     return var_value
-
 
     def _create_scenarios(self, market_data: Dict[str, Any]) -> Sequence[Scenario]:
 
@@ -104,6 +81,7 @@ class HistSimVaR(VaRModel):
         meta.update(
             {
                 "hist_data_window_days": self.hist_data_window_days,
+                "pnls": self._pnls
                 # "volatility": self._volatility,
             }
         )

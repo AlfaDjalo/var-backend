@@ -51,7 +51,7 @@ class VaRModel(ABC):
         )
         # scenario_values = self.revalue_portfolio(portfolio, scenarios)
         pnl = scenario_values - portfolio_value
-
+        self._pnls = pnl.tolist()
 
         # scenario_values = self.revalue_portfolio(portfolio, scenarios)
         # pnl = self._generate_pnl(portfolio, data)
