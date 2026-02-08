@@ -81,7 +81,7 @@ class ProductFactory:
 
             return OptionProduct(
                 product_id=product_input["product_id"],
-                underlying_id=product_input["underlying_ticker"],
+                underlying_ticker=product_input["underlying_ticker"],
                 strike=float(product_input["strike"]),
                 maturity=float(product_input["maturity"]),
                 option_type=product_input["option_type"],

@@ -1,4 +1,4 @@
 data:
   source: "csv"
-  path: "data/"
+  path: "src/data/"
   date_column: "Date"

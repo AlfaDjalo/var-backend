@@ -22,6 +22,7 @@ class GBMScenarioGenerator(ScenarioGenerator):
         horizon: float,
         drifts: Optional[Dict[str, float]] = None,
         seed: Optional[int] = None,
+        vol_of_vol: Optional[float] = None,
     ):
         """
         Parameters
@@ -40,6 +41,8 @@ class GBMScenarioGenerator(ScenarioGenerator):
             Drift per risk factor. Defaults to zero.
         seed : Optional[int]
             RNG seed.
+        vol_of_vol : Optional[float]
+            Default annualised vol of vol.
         """
         super().__init__(horizon=horizon, seed=seed)
 
@@ -53,7 +56,6 @@ class GBMScenarioGenerator(ScenarioGenerator):
 
         self.spot = np.array([spot[a] for a in self.assets], dtype=float)
         self.vols = np.sqrt(np.diag(cov))
-        # self.vols = np.array([vols[a] for a in self.assets], dtype=float)
 
         self.drifts = (
             np.array([drifts[a] for a in self.assets], dtype=float)
@@ -62,12 +64,12 @@ class GBMScenarioGenerator(ScenarioGenerator):
         )
 
         self._validate_inputs(cov)
-        # self._validate_inputs(corr)
 
         # Cholesky factor for covariance
         self._chol = np.linalg.cholesky(cov)
-        # Cholesky factor for correlation
-        # self._chol = np.linalg.cholesky(corr)
+
+        self.vol_of_vol = vol_of_vol
+
 
     def _validate_inputs(self, cov: np.ndarray) -> None:
     # def _validate_inputs(self, corr: np.ndarray) -> None:
@@ -84,13 +86,6 @@ class GBMScenarioGenerator(ScenarioGenerator):
         if np.any(np.diag(cov) < 0):
             raise ValueError("Covariance diagonal must be non-negative")
 
-        # if not np.allclose(np.diag(cov), 1.0):
-        # # if not np.allclose(np.diag(corr), 1.0):
-        #     raise ValueError("Covariance matrix must have unit diagonal")
-            # raise ValueError("Correlation matrix must have unit diagonal")
-
-        # if np.any(self.vols < 0.0):
-        #     raise ValueError("Volatilities must be non-negative")
 
     def generate(self, n: int) -> Sequence[Scenario]:
         """
@@ -111,7 +106,10 @@ class GBMScenarioGenerator(ScenarioGenerator):
 
         spot_t = self.spot * np.exp(drift_term + diffusion)
 
+        vol_t = self._simulate_vols(n)
+
         scenarios = []
+
         for i in range(n):
             scenarios.append(
                 Scenario(
@@ -120,7 +118,8 @@ class GBMScenarioGenerator(ScenarioGenerator):
                         for j, asset in enumerate(self.assets)
                     },
                     vol={
-                        asset: float(self.vols[j])
+                        asset: float(vol_t[i, j])
+                        # asset: float(self.vols[j])
                         for j, asset in enumerate(self.assets)
                     },
                     rate=0.0,
@@ -129,3 +128,24 @@ class GBMScenarioGenerator(ScenarioGenerator):
             )
 
         return scenarios
+
+
+    def _simulate_vols(self, n: int):
+        """
+        Generate n independent GBM vol scenarios.
+        """
+        if self.vol_of_vol is None:
+            return np.tile(self.vols, (n, 1))
+
+        sqrt_t = np.sqrt(self.horizon)
+
+        z = self.rng.standard_normal((n, len(self.assets)))
+
+        eta = self.vol_of_vol
+
+        drift = -0.5 * eta**2 * self.horizon
+        diffusion = eta * sqrt_t * z
+
+        vol_t = self.vols * np.exp(drift + diffusion)
+
+        return vol_t

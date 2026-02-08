@@ -17,7 +17,7 @@ DEFAULT_CONFIG_PATH = BACKEND_ROOT / "config" / "settings.yaml"
 # DEFAULT_CONFIG_PATH = BACKEND_ROOT / "config.yaml"
 
 CONFIG_PATH = Path(ENV_CONFIG_PATH) if ENV_CONFIG_PATH else DEFAULT_CONFIG_PATH
-
+print("CONFIG_PATH: ", CONFIG_PATH)
 # -------------------------------------------------
 # Load config (safe for tests)
 # -------------------------------------------------
@@ -44,5 +44,6 @@ DATA_PATH = (
     if _data_path is not None
     else None
 )
+print("DATA_PATH: ", DATA_PATH)
 
 DATE_COLUMN = DATA_CONFIG.get("date_column", "Date")

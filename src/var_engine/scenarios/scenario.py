@@ -20,3 +20,6 @@ class Scenario:
 
         if not self.spot:
             raise ValueError("Scenario spot mapping cannot be empty")
+
+        if not self.vol:
+            raise ValueError("Scenario vol mapping cannot be empty")

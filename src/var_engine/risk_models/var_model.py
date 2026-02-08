@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Optional, Sequence
 import pandas as pd
 import numpy as np
@@ -28,57 +28,58 @@ class VaRModel(ABC):
         This flow should remain consistent across all VaR models.
         """
         portfolio_value = portfolio.revalue(base_scenario)
-        # portfolio_value = self.portfolio_value_at_scenario(portfolio, base_scenario)
-        # portfolio_value = portfolio.portfolio_value
+
         if portfolio_value <= 0:
             raise ValueError("Portfolio value must be positive")
         
-        pnl = None
-        scenario_values = None
-
-
-        # if isinstance(scenarios, ScenarioSet):
-        #     print("Scenarios: ", scenarios)
-        # # if scenarios is not None:
-        #     scenario_values = pd.Series(
-        #         [portfolio.revalue(s) for s in scenarios]
-        #     )
-        #     # scenario_values = self.revalue_portfolio(portfolio, scenarios)
-        #     pnl = scenario_values - portfolio_value
+        # pnl = None
+        # scenario_values = None
 
         scenario_values = pd.Series(
             [portfolio.revalue(s) for s in scenarios]
         )
+        # print("scenario_values: ", scenario_values)
         # scenario_values = self.revalue_portfolio(portfolio, scenarios)
-        pnl = scenario_values - portfolio_value
-        self._pnls = pnl.tolist()
+        pnl = scenario_values - portfolio_value        
+        self._pnl_dist = pnl.tolist()
+        # self._pnls = pnl.tolist()
 
         # scenario_values = self.revalue_portfolio(portfolio, scenarios)
         # pnl = self._generate_pnl(portfolio, data)
         # pnl: scenario_values - portfolio_value
 
-        print("P&L: ", pnl)
+        # print("P&L: ", pnl)
         
-        var_dol = self.compute_var(
-            # portfolio=portfolio,
-            pnl=pnl,
-            # scenarios=scenarios
-            )
+        var_dol = self.compute_var(pnl=pnl)
+        es = self.compute_es(pnl)
         
         var_pct = var_dol / portfolio_value if portfolio_value != 0 else 0.0
 
+        diagnostics_core = self._compute_diagnostics(
+            pnl=pnl,
+            scenario_values=scenario_values.tolist(),
+            var=var_dol,
+            es=es,
+        )
+
         meta = self.model_metadata()
+
+        diagnostics = {
+            "metadata": meta,
+            **diagnostics_core,
+        }
+        # meta.update(diagnostics)
 
         return VaRResult(
             portfolio_value=float(portfolio_value),
             var_dollar=float(var_dol),
             var_percent=float(var_pct),
             confidence_level=self.confidence_level,
-            volatility=meta.get("volatility"),
+            # volatility=meta.get("volatility"),
             # volatility=self.model_metadata().get("volatility"),
-            pnl_distribution=pnl,
-            scenario_values=scenario_values,
-            metadata=meta,
+            # pnl_distribution=pnl,
+            # scenario_values=scenario_values,
+            metadata=diagnostics,
             # metadata=self.model_metadata()
         )
     
@@ -91,31 +92,64 @@ class VaRModel(ABC):
             lambda row: portfolio.revalue(row),
             axis=1
         )
-        # return portfolio.revalue(scenarios.scenarios)
     
-    # @abstractmethod
-    # def compute_var(
-    #     self,
-    #     # portfolio,
-    #     pnl: Optional[pd.Series],
-    #     # scenarios: Optional[ScenarioSet]
-    # ) -> float:
-    #     """
-    #     Compute the VaR metric from a P&L distribution.
-    #     """
-    #     pass
-
-
     def compute_var(self, pnl: pd.Series) -> float:
         if pnl is None or pnl.empty:
             raise ValueError("Valid P&L required")
 
-        return float(
-            -np.quantile(
-                pnl,
-                1.0 - self.confidence_level,
-            )
-        )
+        q = np.quantile(pnl, self.confidence_level)
+        return float(-q)
+    
+        # return float(
+        #     -np.quantile(
+        #         pnl,
+        #         self.confidence_level,
+        #     )
+        # )
+
+
+    def compute_es(self, pnl: pd.Series) -> float:
+        if pnl is None or pnl.empty:
+            raise ValueError("Valid P&L required")
+
+        q = np.quantile(pnl, self.confidence_level)
+        tail = pnl[pnl <= q]
+        return float(-tail.mean())
+
+
+    def _compute_diagnostics(
+            self,
+            pnl: pd.Series,
+            scenario_values: pd.Series,
+            var: float,
+            es: float,
+    ) -> dict:
+        
+        mean = float(pnl.mean())
+        std = float(pnl.std(ddof=1))
+
+        skew = float(pnl.skew())
+        kurt = float(pnl.kurtosis())
+
+        return {
+            "distribution": {
+                "mean": mean,
+                "std": std,
+                "skew": skew,
+                "kurtosis": kurt,
+                "min": float(pnl.min()),
+                "max": float(pnl.max()),
+            },
+            "tail": {
+                "var": float(var),
+                "es": float(es),
+            },
+            "scenarios": {
+                "n": int(len(pnl)),
+            },
+            "pnls": pnl.to_list()
+
+        }
 
 
     def model_metadata(self) -> dict:
@@ -125,29 +159,5 @@ class VaRModel(ABC):
         """
         return {
             "model": self.__class__.__name__,
-            "confidence_level": self.confidence_level
+            # "confidence_level": self.confidence_level
         }
-    
-    # def portfolio_value_at_scenario(self, portfolio, scenario) -> float:
-    #     """
-    #     Compute portfolio value at a given scenario.
-        
-    #     Args:
-    #         portfolio: Portfolio instance
-    #         scenario: Scenario instance or dict-like market data
-        
-    #     Returns:
-    #         Portfolio value under the scenario
-    #     """
-    #     return portfolio.revalue(scenario)
-
-    # def _generate_pnl(self, portfolio, data) -> pd.Series:
-    #     """
-    #     Default P&L generation via full revaluation under scenarios.
-    #     Used by Historical / MC models.
-    #     """
-    #     if not isinstance(data, ScenarioSet):
-    #         raise TypeError("Expected ScenarioSet for scenario-based VaR model")
-        
-    #     scenario_values = portfolio.revalue(data.scenarios)
-    #     return scenario_values - portfolio.portfolio_value

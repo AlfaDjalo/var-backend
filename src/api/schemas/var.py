@@ -28,6 +28,7 @@ class MonteCarloRequest(BaseVaRRequest):
     # parameter_estimation_window_days: int = Field(252, ge=1)
     n_sims: int = Field(10_000, gt=0)
     random_seed: Optional[int] = None
+    vol_of_vol: Optional[float] = None
 
 
 class HistSimRequest(BaseVaRRequest):

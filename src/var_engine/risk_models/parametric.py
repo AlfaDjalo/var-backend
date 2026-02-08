@@ -5,7 +5,7 @@ from typing import Dict, Any, Callable, Optional
 
 from .var_model import VaRModel
 from .base import VaRResult
-from var_engine.portfolio.portfolio import Portfolio
+# from var_engine.portfolio.portfolio import Portfolio
 from var_engine.scenarios.scenario import Scenario
 
 
@@ -21,21 +21,22 @@ class ParametricVaR(VaRModel):
             confidence_level: float,
             cov_window_days: int = 252,
             cov_estimator: Optional[Callable[[pd.DataFrame], pd.DataFrame]] = None,
+            n_points: int = 10001,
             ):
         super().__init__(confidence_level)
         self.cov_window_days = cov_window_days
         self.cov_estimator = cov_estimator or (lambda r: r.cov())
-
-        # self._portfolio_vol = None
-        # self._correlation = None
+        self.n_points = n_points
 
     def run(self, portfolio, market_data: Dict[str, Any]) -> VaRResult:
 
         base_scenario = self._create_base_scenario(market_data)
         portfolio_value = portfolio.revalue(base_scenario)
 
-        exposures = portfolio.get_sensitivities(base_scenario)
+        # print("Base scenario: ", base_scenario)
 
+        exposures = portfolio.get_sensitivities(base_scenario)
+        # print("Exposures: ", exposures)
         w = pd.Series(exposures)
 
         returns = market_data["returns"]
@@ -43,13 +44,39 @@ class ParametricVaR(VaRModel):
 
         port_var = w.T @ cov @ w
         port_vol = np.sqrt(port_var)
+        correlation = self._correlation_from_cov(cov)
+        # self._volatility = port_vol
+        # self._correlation = self._correlation_from_cov(cov)
 
         z = norm.ppf(self.confidence_level)
-
-        VaR = z * port_vol
-
+        VaR = -z * port_vol
         var_dol = VaR
         var_pct = VaR / portfolio_value
+
+        # --- Deterministic P&L distribution ---
+        pnl_dist = self._build_pnl_distribution(port_vol)
+        # self._pnl_dist = self._build_pnl_distribution(port_vol)
+
+        # meta = self.model_metadata()
+        meta = {
+            **super().model_metadata(),
+            "cov_window_days": self.cov_window_days,
+            "volatility": port_vol,
+            "correlation_matrix": correlation,
+            "pnls": pnl_dist 
+        }
+
+        diagnostics_core = self._compute_diagnostics(
+            pnl=pd.Series(pnl_dist),
+            scenario_values=pd.Series(pnl_dist),  # or scenario_values if available
+            var=var_dol,
+            es=var_dol,  # ES not trivial here — use VaR as proxy or compute exact
+        )
+
+        diagnostics_combined = {
+            "metadata": meta,
+            **diagnostics_core,
+        }
 
         return VaRResult(
             portfolio_value=float(portfolio_value),
@@ -58,9 +85,9 @@ class ParametricVaR(VaRModel):
             confidence_level=self.confidence_level,
             # volatility=meta.get("volatility"),
             # volatility=self.model_metadata().get("volatility"),
-            # pnl_distribution=pnl,
+            # pnl_distribution=pnl_dist,
             # scenario_values=scenario_values,
-            # metadata=meta,
+            metadata=diagnostics_combined,
             # metadata=self.model_metadata()
         )
 
@@ -107,16 +134,36 @@ class ParametricVaR(VaRModel):
             dt=0.0,
         )
 
-    def model_metadata(self) -> dict:
-        meta = super().model_metadata()
-        meta.update(
-            {
-                "cov_window_days": self.cov_window_days,
-                "volatility": self._volatility,
-                "correlation_matrix": self._correlation,
-            }
-        )
-        return meta
+    def _build_pnl_distribution(self, port_vol: float):
+
+        probs = np.linspace(0.001, 0.999, self.n_points)
+        z = norm.ppf(probs)
+
+        return pd.Series(z * port_vol).tolist()
+
+
+        # z = np.linspace(-4, 4, self.n_points)
+
+        # pnl = z * port_vol
+        # pdf = norm.pdf(z)
+
+        # return {
+        #     "z": z.tolist(),
+        #     "pnl": pnl.tolist(),
+        #     "pdf": pdf.tolist(),
+        # }
+
+    # def model_metadata(self) -> dict:
+    #     meta = super().model_metadata()
+    #     meta.update(
+    #         {
+    #             "cov_window_days": self.cov_window_days,
+    #             "volatility": self._volatility,
+    #             "correlation_matrix": self._correlation,
+    #             "pnls": self._pnl_dist,                
+    #         }
+    #     )
+    #     return meta
     
     @staticmethod
     def _correlation_from_cov(cov: pd.DataFrame):

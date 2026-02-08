@@ -5,23 +5,32 @@ import pandas as pd
 from typing import Dict, Any
 
 from api.config import DATA_PATH
-from api.schemas.var import MonteCarloRequest, MonteCarloResponse
+from api.schemas.var import ParametricRequest, ParametricResponse
 from var_engine.data_loader.csv_loader import CSVPriceLoader
 from api.helpers.portfolio import build_portfolio_from_request
-from var_engine.risk_models.monte_carlo import MonteCarloVaR
+from var_engine.risk_models.parametric import ParametricVaR
 
 
-router = APIRouter(prefix="/montecarlo", tags=["Monte Carlo Simulation"])
+# import os
+
+# from var_engine.portfolio.portfolio import Portfolio
+# from var_engine.portfolio.product_factory import ProductFactory
+# from var_engine.portfolio.builders import ProductFactory
+
+# router = APIRouter()
+router = APIRouter(prefix="/parametric", tags=["Parametric"])
 DATA_DIR = DATA_PATH
 
 
 class InspectRequest(BaseModel):
     dataset_name: str
 
+# @router.post("/parametric/calculate")
 @router.post("/calculate")
-def calculate_montecarlo_var(request: MonteCarloRequest):
+# @router.post("/parametric/calculate", response_model=ParametricResponse)
+def calculate_parametric_var(request: ParametricRequest):
     """
-    Calculate Monte Carlo Simulation VaR.
+    Calculate Parametric VaR.
     """
     # -------------------------------------------------
     # 1. Load dataset
@@ -38,12 +47,18 @@ def calculate_montecarlo_var(request: MonteCarloRequest):
     if not csv_path.exists():
         raise HTTPException(400, f"Dataset not found: {dataset_name}")
 
-    loader = CSVPriceLoader(path=csv_path)
+    loader = CSVPriceLoader(
+        path=csv_path,
+        asof_date=request.asof_date
+    )
     prices = loader.load_prices()
     returns = loader.load_returns()
 
     if prices.empty or returns.empty:
         raise HTTPException(400, "Insufficient data")
+
+    if request.estimation_window_days:
+        returns = returns.tail(request.estimation_window_days)
 
     # Get latest prices (spots)
     latest_prices = prices.iloc[-1]
@@ -78,38 +93,54 @@ def calculate_montecarlo_var(request: MonteCarloRequest):
         raise HTTPException(400, f"Failed to build portfolio: {str(e)}")
     print("Portfolio: ", portfolio)
 
-
-    model = MonteCarloVaR(
+    model = ParametricVaR(
         confidence_level=request.confidence_level,
-        n_sims=request.n_sims,
-        random_seed=request.random_seed
+        cov_window_days=request.estimation_window_days,
     )
+
 
     results = model.run(portfolio, market_data=market_data)
 
-    response = MonteCarloResponse(
+    print("Diagnostics: ", results.metadata.keys())
+
+    response = ParametricResponse(
         portfolio_value=results.portfolio_value,
         var_dollar=results.var_dollar,
         var_percent=results.var_percent,
+        # volatility_percent=results.volatility,            
+        # correlation_matrix=results.metadata["correlation_matrix"],
         diagnostics=results.metadata,
     )
+
+    # print(response)
 
     return response
 
     
+# @router.post("/parameric/inspect")
 @router.post("/inspect")
 def inspect_dataset(request: InspectRequest):
     file_path = f"{DATA_DIR}/{request.dataset_name}"
+    print(file_path)
 
     try:
         loader = CSVPriceLoader(path=file_path)
-        df = loader.load_returns()
-    except Exception as e:
-        print(f"Error retreiving asset names: {e}")
-        raise HTTPException(status_code=400, detail=f"Data load failed: {str(e)}")
-    
-    asset_columns = [c for c in df.columns if c.lower() != "date"]
+        df = loader.load_prices()  # Use load_prices here to get prices, not returns
+        if df.empty:
+            raise HTTPException(status_code=400, detail="Price data is empty")
 
-    return {
-        "assets": asset_columns
-    }
+        asset_columns = [c for c in df.columns if c.lower() != "date"]
+
+        # Get last available prices as dict
+        spot_prices = df.iloc[-1].to_dict()
+
+        return {
+            "assets": asset_columns,
+            "spot_prices": spot_prices,
+        }
+
+    except Exception as e:
+        print(f"Error retrieving asset names and spot prices: {e}")
+        raise HTTPException(status_code=400, detail=f"Data load failed: {str(e)}")
+
+

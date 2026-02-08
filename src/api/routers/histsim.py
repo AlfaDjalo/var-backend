@@ -1,3 +1,4 @@
+# api/routers/histsim.py
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
@@ -5,32 +6,19 @@ import pandas as pd
 from typing import Dict, Any
 
 from api.config import DATA_PATH
-from api.schemas.var import ParametricRequest, ParametricResponse
+from api.schemas.var import HistSimRequest, HistSimResponse
 from var_engine.data_loader.csv_loader import CSVPriceLoader
 from api.helpers.portfolio import build_portfolio_from_request
-from var_engine.risk_models.parametric import ParametricVaR
+from var_engine.risk_models.historical_simulation import HistSimVaR
 
-
-# import os
-
-# from var_engine.portfolio.portfolio import Portfolio
-# from var_engine.portfolio.product_factory import ProductFactory
-# from var_engine.portfolio.builders import ProductFactory
-
-# router = APIRouter()
-router = APIRouter(prefix="/parametric", tags=["Parametric"])
+router = APIRouter(prefix="/histsim", tags=["Historical Simulation"])
 DATA_DIR = DATA_PATH
 
 
-class InspectRequest(BaseModel):
-    dataset_name: str
-
-# @router.post("/parametric/calculate")
 @router.post("/calculate")
-# @router.post("/parametric/calculate", response_model=ParametricResponse)
-def calculate_parametric_var(request: ParametricRequest):
+def calculate_histsim(request: HistSimRequest):
     """
-    Calculate Parametric VaR.
+    Calculate Historical Simulation VaR using proper product structure.
     """
     # -------------------------------------------------
     # 1. Load dataset
@@ -54,7 +42,10 @@ def calculate_parametric_var(request: ParametricRequest):
     if prices.empty or returns.empty:
         raise HTTPException(400, "Insufficient data")
 
-    # Get latest prices (spots)
+    if request.estimation_window_days:
+        returns = returns.tail(request.estimation_window_days)
+
+    # Get latest prices (spot)
     latest_prices = prices.iloc[-1]
 
     spot: Dict[str, float] = {
@@ -71,6 +62,13 @@ def calculate_parametric_var(request: ParametricRequest):
         "cov": cov,
         "horizon": 1.0 / 252,
     }
+    # df = pd.read_csv(csv_path)
+
+    # if DATE_COLUMN not in df.columns:
+    #     raise HTTPException(400, f"Missing {DATE_COLUMN}")
+
+    # df[DATE_COLUMN] = pd.to_datetime(df[DATE_COLUMN])
+    # df = df.set_index(DATE_COLUMN).sort_index()
 
     # -------------------------------------------------
     # 2. Build portfolio from products
@@ -79,60 +77,34 @@ def calculate_parametric_var(request: ParametricRequest):
     print("products: ", products)
     if not products:
         raise HTTPException(400, "Products required")
+
+    # if not isinstance(products, dict):
+    #     raise HTTPException(400, "Products must be dict[ticker,value]")
     
     try:
+        # products_dicts = [p for p in products]
+        # products_dicts = [p.model_dump() for p in payload.products]
         portfolio = build_portfolio_from_request(products)
-
+        # portfolio = build_portfolio_from_request(products_dicts)
     except Exception as e:
         raise HTTPException(400, f"Failed to build portfolio: {str(e)}")
     print("Portfolio: ", portfolio)
 
-    model = ParametricVaR(
-        confidence_level=request.confidence_level,
-        cov_window_days=request.estimation_window_days,
-    )
 
+    model = HistSimVaR(
+        confidence_level=request.confidence_level,
+        hist_data_window_days = request.estimation_window_days
+    )
 
     results = model.run(portfolio, market_data=market_data)
 
-    response = ParametricResponse(
+
+
+    response = HistSimResponse(
         portfolio_value=results.portfolio_value,
         var_dollar=results.var_dollar,
         var_percent=results.var_percent,
-        # volatility_percent=results.volatility,            
-        # correlation_matrix=results.metadata["correlation_matrix"],
         diagnostics=results.metadata,
     )
 
-    # print(response)
-
     return response
-
-    
-# @router.post("/parameric/inspect")
-@router.post("/inspect")
-def inspect_dataset(request: InspectRequest):
-    file_path = f"{DATA_DIR}/{request.dataset_name}"
-    print(file_path)
-
-    try:
-        loader = CSVPriceLoader(path=file_path)
-        df = loader.load_prices()  # Use load_prices here to get prices, not returns
-        if df.empty:
-            raise HTTPException(status_code=400, detail="Price data is empty")
-
-        asset_columns = [c for c in df.columns if c.lower() != "date"]
-
-        # Get last available prices as dict
-        spot_prices = df.iloc[-1].to_dict()
-
-        return {
-            "assets": asset_columns,
-            "spot_prices": spot_prices,
-        }
-
-    except Exception as e:
-        print(f"Error retrieving asset names and spot prices: {e}")
-        raise HTTPException(status_code=400, detail=f"Data load failed: {str(e)}")
-
-

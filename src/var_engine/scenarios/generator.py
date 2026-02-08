@@ -13,7 +13,7 @@ class ScenarioGenerator(ABC):
     future horizon. It is model-aware but portfolio-agnostic.
     """
 
-    def __init__(self, horizon: float, seed: Optional[int] = None):
+    def __init__(self, horizon: float, seed: Optional[int] = None, vol_of_vol: Optional[float] = None):
         """
         Parameters
         ----------

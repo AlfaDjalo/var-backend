@@ -19,6 +19,7 @@ class MonteCarloVaR(VaRModel):
             n_sims: int = 10_000,
             random_seed: int = 42,
             horizon: float = 1.0 / 252,
+            vol_of_vol: float = None,
             # cov_estimator: Optional[Callable[[pd.DataFrame], pd.DataFrame]] = None,
             use_mean: bool = True,
             generator = GBMScenarioGenerator
@@ -32,6 +33,7 @@ class MonteCarloVaR(VaRModel):
         self.n_sims = n_sims
         self.random_seed = random_seed
         self.horizon = horizon
+        self.vol_of_vol = vol_of_vol
 
         self.use_mean = use_mean
         # self.cov_estimator = cov_estimator or (lambda r: r.cov())
@@ -47,14 +49,13 @@ class MonteCarloVaR(VaRModel):
         Run Monte Carlo VaR using full revaluation under scenarios.
         """    
         scenarios = self._create_scenarios(market_data)
-
         base_scenario = self._create_base_scenario(market_data)
 
         return super().run(portfolio, base_scenario, scenarios)
     
     def _create_scenarios(self, market_data: Dict[str, Any]) -> Sequence[Scenario]:
 
-        print(np.sqrt(np.diag(market_data["cov"])))
+        # print(np.sqrt(np.diag(market_data["cov"])))
 
          # Create scenario generator
         generator = self.generator(
@@ -63,7 +64,8 @@ class MonteCarloVaR(VaRModel):
             # corr=corr,
             cov = market_data["cov"] * 252,
             horizon=self.horizon, #1.0/252,  # 1 day horizon
-            seed=self.random_seed #None #request.random_seed
+            seed=self.random_seed, #None #request.random_seed
+            vol_of_vol=self.vol_of_vol,
         )
 
         return generator.generate(n=self.n_sims)
@@ -80,7 +82,8 @@ class MonteCarloVaR(VaRModel):
             spot=spot,
             vol={a: float(v) for a, v in zip(assets, vols)},
             rate=0.0,
-            dt=0.0,
+            dt=self.horizon,
+            # dt=0.0,
         )
 
     def compute_es(self, pnl: pd.Series) -> float:
@@ -112,7 +115,8 @@ class MonteCarloVaR(VaRModel):
                 "use_mean": self.use_mean,
                 "volatility": self._volatility,
                 "random_seed": self.random_seed,
-                "pnls": self._pnls
+                "vol_of_vol": self.vol_of_vol,
+                "pnls": self._pnl_dist,
             }
         )
         return meta

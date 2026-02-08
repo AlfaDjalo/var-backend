@@ -84,7 +84,6 @@ class Portfolio:
         Returns:
             Portfolio profit or loss under the scenario.
         """
-        # print("P&L: ", self.revalue(scenario) - self.revalue(base_scenario))
         return self.revalue(scenario) - self.revalue(base_scenario)
 
 

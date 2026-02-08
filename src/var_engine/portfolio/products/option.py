@@ -7,6 +7,7 @@ from var_engine.models.option_pricing.base import OptionPricingModel
 class OptionProduct(Product):
     """
     Vanilla European option priced off spot/vol/rate scenarios.
+    Produces dollar sensitivities.
     """
 
     def __init__(
@@ -18,7 +19,6 @@ class OptionProduct(Product):
         option_type: str,          # "call" or "put"
         quantity: float,
         pricing_model: OptionPricingModel,
-        # initial_spot: float,
     ):
         """
         Parameters
@@ -37,8 +37,6 @@ class OptionProduct(Product):
             Number of option contracts.
         pricing_model : OptionPricingModel
             Pricing model used for valuation.
-        initial_spot : float
-            Spot used to compute initial market value.
         """
         self.underlying_ticker = underlying_ticker
         self.strike = float(strike)
@@ -50,18 +48,7 @@ class OptionProduct(Product):
         if self.option_type not in {"call", "put"}:
             raise ValueError("option_type must be 'call' or 'put'")
 
-        # Compute initial market value
-        # initial_price = pricing_model.price(
-        #     spot=initial_spot,
-        #     strike=self.strike,
-        #     maturity=self.maturity,
-        #     vol=pricing_model.initial_vol,
-        #     rate=pricing_model.initial_rate,
-        #     option_type=self.option_type,
-        # )
-
         super().__init__(product_id)
-        # super().__init__(product_id, self.quantity * initial_price)
 
     def revalue(self, scenario: Scenario) -> float:
         """
@@ -87,22 +74,63 @@ class OptionProduct(Product):
         return self.quantity * price
 
     def get_sensitivities(self, scenario: Scenario) -> Dict[str, float]:
-        spot = scenario.spot[self.underlying_ticker]
-        vol = scenario.vol[self.underlying_ticker]
+        """
+        Return $-delta exposure for delta-normal VaR.
+
+        Exposure = delta * spot * quantity
+        """
+        try:
+            spot = scenario.spot[self.underlying_ticker]
+            vol = scenario.vol[self.underlying_ticker]
+        except KeyError as e:
+            raise KeyError(f"Scenario missing data for {self.underlying_ticker}") from e
+        remaining_maturity = max(self.maturity - scenario.dt, 0.0)
 
         greeks = self.pricing_model.greeks(
             spot=spot,
             strike=self.strike,
-            maturity=self.maturity,
+            maturity=remaining_maturity,
             vol=vol,
             rate=scenario.rate,
             option_type=self.option_type
         )
 
-        delta = greeks["delta"]
+        unit_delta = greeks["delta"]
+        dollar_delta = unit_delta * spot * self.quantity
 
-        exposure = delta * spot * self.quantity
+        # exposure = delta * spot * self.quantity
         
         return {
-            self.underlying_ticker: exposure
+            self.underlying_ticker: float(dollar_delta)
         }
+    
+    # ---------------------------------------------------------
+    # Optional: full $ Greeks (future use)
+    # ---------------------------------------------------------
+    def get_dollar_greeks(self, scenario: Scenario) -> Dict[str, float]:
+        """
+        Full dollar Greeks for advanced risk models.
+        Not required for delta-normal VaR.
+        """
+
+        spot = scenario.spot[self.underlying_ticker]
+        vol = scenario.vol[self.underlying_ticker]
+
+        remaining_maturity = max(self.maturity - scenario.dt, 0.0)
+
+        g = self.pricing_model.greeks(
+            spot=spot,
+            strike=self.strike,
+            maturity=remaining_maturity,
+            vol=vol,
+            rate=scenario.rate,
+            option_type=self.option_type,
+        )
+
+        return {
+            "dollar_delta": g["delta"] * spot * self.quantity,
+            "dollar_gamma": g["gamma"] * (spot ** 2) * self.quantity,
+            "dollar_vega": g["vega"] * self.quantity,
+            "dollar_theta": g["theta"] * self.quantity,
+            "dollar_rho": g["rho"] * self.quantity,
+        }    

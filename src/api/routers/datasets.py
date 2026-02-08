@@ -6,12 +6,15 @@ import uuid
 import shutil
 from pydantic import BaseModel
 
+from api.config import DATA_PATH
 from var_engine.data_loader.csv_loader import CSVPriceLoader
 
 # app = FastAPI()
 router = APIRouter()
 
-DATA_DIR = "data"
+DATA_DIR = DATA_PATH
+print("DATA_DIR: ", DATA_DIR)
+# DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
 @router.get("/datasets")
