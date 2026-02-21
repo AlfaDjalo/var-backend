@@ -1,76 +1,127 @@
-from typing import Optional
+from typing import Dict
+from var_engine.scenarios.scenario import Scenario
 from .base import Product
+
 
 class BondProduct(Product):
     """
     Simple fixed coupon bond product.
     """
+
     def __init__(
-            self,
-            product_id: str,
-            issuer: str,
-            notional: float,
-            coupon: float,          # annual coupon rate, e.g. 0.05 for 5%
-            maturity: float,        # years to maturity
-            frequency: int = 2     # coupon payments per year (default semi-annual)
+        self,
+        product_id: str,
+        issuer: str,
+        notional: float,
+        coupon: float,
+        maturity: float,
+        frequency: int = 2,
     ):
         super().__init__(product_id)
+
         self.issuer = issuer
         self.notional = float(notional)
         self.coupon = float(coupon)
         self.maturity = float(maturity)
         self.frequency = int(frequency)
 
+    # ---------------------------------------------------------
+    # Internal PV calculation
+    # ---------------------------------------------------------
+
     def _calculate_present_value(self, discount_rate: float) -> float:
-        """
-        Calculate present value of the bond cash flows discounted at given rate.
-
-        Args:
-            discount_rate: Annual discount rate (continuously compounded or simple assumed here)
-
-        Returns:
-            Present value of bond.
-        """
-        # Number of coupon payments remaining
         n_payments = int(self.maturity * self.frequency)
         coupon_payment = self.notional * self.coupon / self.frequency
 
-        # Discount factor per period assuming simple compounding (can extend to more complex)
         period_rate = discount_rate / self.frequency
 
-        # Present value of coupons (annuity formula)
         if period_rate > 0:
-            pv_coupons = coupon_payment * (1 - (1 + period_rate) ** (-n_payments)) / period_rate
+            pv_coupons = coupon_payment * (
+                1 - (1 + period_rate) ** (-n_payments)
+            ) / period_rate
             pv_principal = self.notional / (1 + period_rate) ** n_payments
         else:
-            # If zero rate, sum coupons directly
             pv_coupons = coupon_payment * n_payments
             pv_principal = self.notional
 
         return pv_coupons + pv_principal
 
-    def revalue(self, scenario):
-        """
-        Revalue bond using interest rate from scenario.
+    # ---------------------------------------------------------
+    # Revaluation
+    # ---------------------------------------------------------
 
-        Assumes scenario.rate provides annual discount rate for issuer (or a general rate).
-
-        Args:
-            scenario: dict-like or object with 'rate' attribute or dict of rates by issuer
-
-        Returns:
-            Updated market value (float)
-        """
+    def revalue(self, scenario: Scenario) -> float:
         try:
-            if hasattr(scenario, "rate"):
-                if isinstance(scenario.rate, dict):
-                    rate = scenario.rate.get(self.issuer, 0.0)
-                else:
-                    rate = scenario.rate
+            if isinstance(scenario.rate, dict):
+                rate = scenario.rate.get(self.issuer, 0.0)
             else:
-                rate = scenario.get("rate", 0.0)
-
+                rate = scenario.rate
         except Exception:
             rate = 0.0
 
         return self._calculate_present_value(rate)
+
+    # ---------------------------------------------------------
+    # Factor Sensitivities (DV01-style)
+    # ---------------------------------------------------------
+
+    def get_sensitivities(self, scenario: Scenario) -> Dict[str, float]:
+        """
+        Return rate sensitivity (dollar change per 1bp).
+        """
+        try:
+            if isinstance(scenario.rate, dict):
+                rate = scenario.rate.get(self.issuer, 0.0)
+            else:
+                rate = scenario.rate
+        except Exception:
+            rate = 0.0
+
+        base_pv = self._calculate_present_value(rate)
+        bump_pv = self._calculate_present_value(rate + 0.0001)
+
+        # DV01 (change per 1bp)
+        dv01 = (bump_pv - base_pv) / 0.0001
+
+        return {
+            f"rate:{self.issuer}": float(dv01)
+        }
+
+    # ---------------------------------------------------------
+    # Full Dollar Greeks
+    # ---------------------------------------------------------
+
+    def get_dollar_greeks(self, scenario: Scenario) -> Dict[str, float]:
+        """
+        Bond risk profile approximated as:
+
+            Delta = 0
+            Gamma = 0
+            Vega = 0
+            Theta = 0
+            Rho = rate sensitivity
+
+        Rho = dollar change per 1 unit rate change
+        """
+
+        try:
+            if isinstance(scenario.rate, dict):
+                rate = scenario.rate.get(self.issuer, 0.0)
+            else:
+                rate = scenario.rate
+        except Exception:
+            rate = 0.0
+
+        base_pv = self._calculate_present_value(rate)
+        bump_pv = self._calculate_present_value(rate + 0.0001)
+
+        # Sensitivity per unit rate (not per bp)
+        rho = (bump_pv - base_pv) / 0.0001
+
+        return {
+            "dollar_delta": 0.0,
+            "dollar_gamma": 0.0,
+            "dollar_vega": 0.0,
+            "dollar_theta": 0.0,
+            "dollar_rho": float(rho),
+        }

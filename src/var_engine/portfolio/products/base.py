@@ -31,7 +31,14 @@ class Product(ABC):
             factor_id -> dV/d(return_factor)
         """
         pass
-    
+
+    def factor_pnl(self, scenario, base_scenario):
+        """
+        Optional exact factor decomposition.
+        Default: None (portfolio will fallback to Greeks).
+        """
+        return None
+        
     # @property
     # def market_value(self):
     #     raise NotImplementedError("Use revalue(scenario) to get market value")

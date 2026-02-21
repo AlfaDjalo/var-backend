@@ -85,7 +85,9 @@ def calculate_montecarlo_var(request: MonteCarloRequest):
     )
 
     results = model.run(portfolio, market_data=market_data)
-    print("results: ", results)
+    # print("results: ", results)
+    print("Diagnostics: ", results.metadata.keys())
+
     response = MonteCarloResponse(
         portfolio_value=results.portfolio_value,
         var_dollar=results.var_dollar,

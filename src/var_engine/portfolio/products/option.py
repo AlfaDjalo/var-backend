@@ -73,6 +73,7 @@ class OptionProduct(Product):
 
         return self.quantity * price
 
+
     def get_sensitivities(self, scenario: Scenario) -> Dict[str, float]:
         """
         Return $-delta exposure for delta-normal VaR.
@@ -101,8 +102,16 @@ class OptionProduct(Product):
         # exposure = delta * spot * self.quantity
         
         return {
-            self.underlying_ticker: float(dollar_delta)
+            # f"spot:{self.underlying_ticker}": greeks["delta"] * spot * self.quantity,
+            f"spot:{self.underlying_ticker}": float(dollar_delta),
+            f"vol:{self.underlying_ticker}": greeks["vega"] * self.quantity,
+            "rate": greeks["rho"] * self.quantity,
         }
+
+
+        # return {
+        #     f"spot:{self.underlying_ticker}": float(dollar_delta)
+        # }
     
     # ---------------------------------------------------------
     # Optional: full $ Greeks (future use)

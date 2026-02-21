@@ -32,18 +32,19 @@ def calculate_parametric_var(request: ParametricRequest):
     """
     Calculate Parametric VaR.
     """
+    print("request: ", request)
     # -------------------------------------------------
     # 1. Load dataset
     # -------------------------------------------------
-    print("Loading dataset.")
+    # print("Loading dataset.")
     dataset_name = request.dataset_name
-    print("dataset_name:", dataset_name)
+    # print("dataset_name:", dataset_name)
     if not dataset_name:
         raise HTTPException(400, "Dataset name required")
-    print("DATA_DIR:", DATA_DIR)
+    # print("DATA_DIR:", DATA_DIR)
 
     csv_path = Path(DATA_DIR) / dataset_name
-    print("csv_path:", csv_path)
+    # print("csv_path:", csv_path)
     if not csv_path.exists():
         raise HTTPException(400, f"Dataset not found: {dataset_name}")
 
@@ -91,7 +92,7 @@ def calculate_parametric_var(request: ParametricRequest):
 
     except Exception as e:
         raise HTTPException(400, f"Failed to build portfolio: {str(e)}")
-    print("Portfolio: ", portfolio)
+    # print("Portfolio: ", portfolio)
 
     model = ParametricVaR(
         confidence_level=request.confidence_level,

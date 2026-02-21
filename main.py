@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routers import datasets, parametric, histsim, montecarlo
+from api.routers import datasets, parametric, histsim, montecarlo, greeks
 # from api.routers import var_covar, datasets, parametric
 
 app = FastAPI()
@@ -23,6 +23,7 @@ app.include_router(histsim.router)
 app.include_router(montecarlo.router)
 
 app.include_router(datasets.router)
+app.include_router(greeks.router)
 
 @app.get("/")
 def root():
